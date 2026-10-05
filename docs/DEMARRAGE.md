@@ -19,8 +19,18 @@ jamais la base de production. Les tests RAG créent et suppriment des organisati
 
 ```powershell
 npm run typecheck
+# Créer une base dédiée (une seule fois).
+docker compose exec postgres createdb -U postgres hakili_test
+$env:DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5432/hakili_test"
+$env:AI_PROVIDER = "local"
+$env:EMBEDDING_PROVIDER = "local"
+npm run db:migrate
 npm test
 npm run build
+# Revenir à la base de développement indiquée dans .env.
+Remove-Item Env:DATABASE_URL
+Remove-Item Env:AI_PROVIDER
+Remove-Item Env:EMBEDDING_PROVIDER
 ```
 
 Sans clé IA, le chat utilise un mode extractif local. Les fichiers importés
@@ -30,5 +40,6 @@ Ne pas exécuter `docker compose down -v` pour arrêter : cette option supprime 
 ## État du dépôt
 
 Le dépôt central est `mandendigitals-art/HAKILI`.
-La recherche native limitée, les citations du mode extractif, les quotas concurrents,
-les migrations et les parcours réels doivent être validés avant production.
+La recherche native parcourt les fragments par lots et le mode local cite ses passages.
+Les quotas concurrents, la performance sur de grandes bases et les tests dans un navigateur
+restent à valider avant production.

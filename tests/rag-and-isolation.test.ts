@@ -1,3 +1,4 @@
+import "./database-guard";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { eq } from "drizzle-orm";
 import { db, pool } from "@/db";
@@ -10,9 +11,13 @@ import {
   conversations,
   plans,
   subscriptions,
+  documents,
+  documentChunks,
+  embeddings,
 } from "@/db/schema";
 import { ingestDocument, retrieve, answerQuestion } from "@/lib/rag/engine";
 import { chunkText } from "@/lib/rag/extract";
+import { getEmbeddingProvider } from "@/lib/ai/provider";
 import { ensureDefaultPlans } from "@/lib/plans";
 
 describe("Moteur RAG et Isolation Multi-Tenant", () => {
@@ -156,6 +161,19 @@ describe("Moteur RAG et Isolation Multi-Tenant", () => {
       expect(chunks.length).toBeGreaterThan(0);
       expect(chunks[0].content).toContain("150 000 FCFA");
       expect(chunks[0].sourceName).toBe("Grille Salariale et Primes Alpha.txt");
+    });
+
+    it("cherche aussi au-delà du premier lot de 250 fragments", async () => {
+      const [kb] = await db.insert(knowledgeBases).values({organizationId:orgAId,name:"Grand dossier"}).returning();
+      const [source] = await db.insert(sources).values({organizationId:orgAId,knowledgeBaseId:kb.id,type:"text",name:"Grand dossier",status:"completed"}).returning();
+      const [doc] = await db.insert(documents).values({organizationId:orgAId,knowledgeBaseId:kb.id,sourceId:source.id,title:"Grand dossier",content:"Contenu de test"}).returning();
+      const texts = Array.from({length:251},(_,i) => i === 250 ? "Le code secret du dossier ZEBRAX est ORION-987." : "Les horaires des bureaux sont de huit heures à seize heures.");
+      const provider = getEmbeddingProvider();
+      const vectors = await provider.embed(texts);
+      const chunks = await db.insert(documentChunks).values(texts.map((content,i) => ({id:`large-chunk-${kb.id}-${i}`,organizationId:orgAId,knowledgeBaseId:kb.id,documentId:doc.id,sourceId:source.id,chunkIndex:i,content}))).returning();
+      await db.insert(embeddings).values(chunks.map(c => ({id:`large-vector-${kb.id}-${String(c.chunkIndex).padStart(4,"0")}`,organizationId:orgAId,knowledgeBaseId:kb.id,chunkId:c.id,model:provider.model,dims:provider.dims,vector:vectors[c.chunkIndex]})));
+      const result = await retrieve({organizationId:orgAId,knowledgeBaseIds:[kb.id],query:"Quel est le code secret du dossier ZEBRAX ?",topK:1});
+      expect(result[0].content).toContain("ORION-987");
     });
 
     it("répond avec citation exacte et passage utilisé", async () => {

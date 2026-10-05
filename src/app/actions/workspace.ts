@@ -76,6 +76,7 @@ async function processSource(sourceId: string, organizationId: string, fn: () =>
       .update(sources)
       .set({ status: "error", errorMessage: safeErrorMessage(e, "Le traitement a échoué.") })
       .where(eq(sources.id, sourceId));
+    throw new AppError(safeErrorMessage(e, "Le traitement du document a échoué."));
   }
 }
 

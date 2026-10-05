@@ -269,30 +269,32 @@ class LocalExtractiveChat implements LLMProvider {
     const ctx = ctxMatch?.[1] ?? "";
     const question = user.replace(/^Question\s*:\s*/i, "");
     const qTokens = new Set(tokenize(question).filter((t) => !/^\d+$/.test(t) && t.length > 2));
-    const sentences = ctx
-      .split(/(?<=[.!?])\s+|\n+/)
-      .map((s) => s.replace(/^\[\d+\][^\n]*\n?/, "").trim())
-      .filter((s) => s.length > 30 && !s.startsWith("[") && !s.startsWith("==="));
+    // Conserve le numéro du passage jusque dans chaque phrase retenue.
+    const sentences = Array.from(ctx.matchAll(/\[(\d+)\] Source :[^\n]*\n([\s\S]*?)(?=\n\n\[\d+\] Source :|$)/g))
+      .flatMap((match) => match[2]
+        .split(/(?<=[.!?])\s+|\n+/)
+        .map((sentence) => ({ s: sentence.trim(), rank: Number(match[1]) })))
+      .filter((item) => item.s.length > 30);
     const scored = sentences
-      .map((s) => {
+      .map(({ s, rank }) => {
         const toks = tokenize(s);
         const matched = new Set<string>();
         for (const t of toks) {
           if (qTokens.has(t)) matched.add(t);
           else for (const q of qTokens) if (q.length > 4 && t.startsWith(q.slice(0, 5))) matched.add(q);
         }
-        return { s, score: matched.size >= 2 || qTokens.size <= 1 ? matched.size / Math.sqrt(toks.length + 1) : 0 };
+        return { s, rank, score: matched.size >= 2 || qTokens.size <= 1 ? matched.size / Math.sqrt(toks.length + 1) : 0 };
       })
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, 4);
     let text: string;
     if (scored.length === 0) {
-      text = "Je n'ai pas trouvé d'information suffisante dans vos sources pour répondre à cette question.";
+      text = "Je ne trouve pas cette information dans les sources disponibles.";
     } else {
       text =
         "D'après vos sources :\n\n" +
-        scored.map((x) => `• ${x.s}`).join("\n") +
+        scored.map((x) => `• ${x.s} [${x.rank}]`).join("\n") +
         "\n\n_(Mode local sans modèle génératif : réponse extractive. Configurez un fournisseur IA pour des réponses rédigées.)_";
     }
     return { text, promptTokens: estimateTokens(system + user), completionTokens: estimateTokens(text), provider: this.name, model: this.model };

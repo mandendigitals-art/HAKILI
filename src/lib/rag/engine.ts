@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assistantKnowledgeBases,
@@ -216,50 +216,48 @@ export async function retrieve(params: {
     }
   }
 
-  // Mode de repli maîtrisé : requête SQL filtrée par organisation + base, avec limite raisonnable
-  const candidateLimit = Math.max(topK * 15, 60);
-  const rows = await db
-    .select({
-      chunkId: documentChunks.id,
-      documentId: documentChunks.documentId,
-      sourceId: documentChunks.sourceId,
-      content: documentChunks.content,
-      vector: embeddings.vector,
-      model: embeddings.model,
-      sourceName: sources.name,
-      sourceType: sources.type,
-    })
-    .from(embeddings)
-    .innerJoin(documentChunks, eq(documentChunks.id, embeddings.chunkId))
-    .innerJoin(sources, eq(sources.id, documentChunks.sourceId))
-    .where(
-      and(
+  // Parcourt tous les fragments autorisés par lots, sans garder tous les vecteurs en mémoire.
+  const batchSize = 250;
+  let cursor: string | undefined;
+  let best: RetrievedChunk[] = [];
+  while (true) {
+    const rows = await db
+      .select({
+        embeddingId: embeddings.id,
+        chunkId: documentChunks.id,
+        documentId: documentChunks.documentId,
+        sourceId: documentChunks.sourceId,
+        content: documentChunks.content,
+        vector: embeddings.vector,
+        sourceName: sources.name,
+        sourceType: sources.type,
+      })
+      .from(embeddings)
+      .innerJoin(documentChunks, eq(documentChunks.id, embeddings.chunkId))
+      .innerJoin(sources, eq(sources.id, documentChunks.sourceId))
+      .where(and(
         eq(embeddings.organizationId, organizationId),
         inArray(embeddings.knowledgeBaseId, knowledgeBaseIds),
         eq(embeddings.model, provider.model),
         eq(sources.status, "completed"),
-      ),
-    )
-    .limit(candidateLimit);
-
-  const scored: RetrievedChunk[] = rows.map((r) => {
-    const v = cosine(qVec, r.vector);
-    const l = lexicalScore(qTokens, r.content);
-    return {
-      chunkId: r.chunkId,
-      documentId: r.documentId,
-      sourceId: r.sourceId,
-      sourceName: r.sourceName,
-      sourceType: r.sourceType,
-      content: r.content,
-      vectorScore: v,
-      lexicalScore: l,
-      score: 0.6 * v + 0.4 * l,
-    };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, topK);
+        cursor ? gt(embeddings.id, cursor) : undefined,
+      ))
+      .orderBy(embeddings.id)
+      .limit(batchSize);
+    const scored: RetrievedChunk[] = rows.map((r) => {
+      const v = cosine(qVec, r.vector);
+      const l = lexicalScore(qTokens, r.content);
+      return {
+        chunkId: r.chunkId, documentId: r.documentId, sourceId: r.sourceId,
+        sourceName: r.sourceName, sourceType: r.sourceType, content: r.content,
+        vectorScore: v, lexicalScore: l, score: 0.6 * v + 0.4 * l,
+      };
+    });
+    best = [...best, ...scored].sort((a, b) => b.score - a.score).slice(0, topK);
+    if (rows.length < batchSize) break;
+    cursor = rows[rows.length - 1].embeddingId;
+  }
+  return best;
 }
 
 // ─────────────────────────── Génération ───────────────────────────
