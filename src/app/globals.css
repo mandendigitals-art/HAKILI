@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --color-nuit-950: #060f24;
+  --color-nuit-900: #0b1b3a;
+  --color-nuit-800: #122650;
+  --color-nuit-700: #1b3468;
+  --color-tech-700: #1557c0;
+  --color-tech-600: #1e6fe8;
+  --color-tech-500: #3b82f6;
+  --color-tech-100: #dbeafe;
+  --color-tech-50: #eff6ff;
+  --color-orange-600: #e0700f;
+  --color-orange-500: #f5811f;
+  --color-orange-100: #ffe8d1;
+  --color-orange-50: #fff5ea;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--color-slate-50); color: var(--color-slate-900); -webkit-font-smoothing: antialiased; }
+
+@layer components {
+  .btn, .btn-primary, .btn-accent, .btn-secondary, .btn-ghost, .btn-danger {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    border-radius: .5rem; padding: .625rem 1rem; font-size: .875rem; line-height: 1.25rem; font-weight: 600;
+    transition: background-color .15s, color .15s; cursor: pointer;
+  }
+  .btn:disabled, .btn-primary:disabled, .btn-accent:disabled, .btn-secondary:disabled, .btn-ghost:disabled, .btn-danger:disabled { opacity: .6; cursor: not-allowed; }
+  .btn:focus-visible, .btn-primary:focus-visible, .btn-accent:focus-visible, .btn-secondary:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline: 2px solid var(--color-tech-500); outline-offset: 2px; }
+  .btn-primary { background: var(--color-tech-600); color: #fff; }
+  .btn-primary:hover { background: var(--color-tech-700); }
+  .btn-accent { background: var(--color-orange-500); color: #fff; }
+  .btn-accent:hover { background: var(--color-orange-600); }
+  .btn-secondary { background: #fff; color: var(--color-nuit-900); border: 1px solid var(--color-slate-200); }
+  .btn-secondary:hover { background: var(--color-slate-50); }
+  .btn-ghost { color: var(--color-slate-600); }
+  .btn-ghost:hover { background: var(--color-slate-100); }
+  .btn-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .btn-danger:hover { background: #fee2e2; }
+  .card { border-radius: .75rem; border: 1px solid var(--color-slate-200); background: #fff; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
+  .input { width: 100%; border-radius: .5rem; border: 1px solid var(--color-slate-300); background: #fff; padding: .625rem .75rem; font-size: .875rem; line-height: 1.25rem; color: var(--color-slate-900); }
+  .input::placeholder { color: var(--color-slate-400); }
+  .input:focus { border-color: var(--color-tech-500); outline: none; box-shadow: 0 0 0 2px var(--color-tech-100); }
+  .label { display: block; margin-bottom: .25rem; font-size: .875rem; font-weight: 500; color: var(--color-slate-700); }
+  .badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: .125rem .625rem; font-size: .75rem; font-weight: 500; }
+}
+
+.animate-fade-in { animation: fadeIn .35s ease-out both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.typing span { animation: blink 1.2s infinite; }
+.typing span:nth-child(2) { animation-delay: .2s } .typing span:nth-child(3) { animation-delay: .4s }
+@keyframes blink { 0%,80%,100% { opacity: .2 } 40% { opacity: 1 } }
